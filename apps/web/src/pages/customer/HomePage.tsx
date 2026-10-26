@@ -12,6 +12,7 @@ import {
   PhoneCall,
   CheckCircle2,
   Users,
+  Search,
 } from 'lucide-react';
 import { ICar } from '@car-rental/shared';
 import { api } from '../../services/apiClient';
@@ -128,7 +129,12 @@ export const HomePage: React.FC = () => {
                 </Button>
               </Link>
               <Link to="/status">
-                <Button size="md" variant="outline" className="border-white/30 text-white hover:bg-white/10">
+                <Button
+                  size="md"
+                  variant="outline"
+                  className="bg-white/10 hover:bg-white/20 text-white border-white/30 backdrop-blur-sm shadow-sm transition-all"
+                  icon={<Search className="w-4 h-4 text-brand-300" />}
+                >
                   {t.hero.checkBooking}
                 </Button>
               </Link>
@@ -383,7 +389,12 @@ export const HomePage: React.FC = () => {
               </Button>
             </Link>
             <a href="tel:+919876543210">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto border-white/30 text-white hover:bg-white/10" icon={<PhoneCall className="w-4 h-4" />}>
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border-white/30 backdrop-blur-sm shadow-sm"
+                icon={<PhoneCall className="w-4 h-4 text-emerald-400" />}
+              >
                 Call Dispatch
               </Button>
             </a>
