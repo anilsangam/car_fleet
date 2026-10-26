@@ -60,6 +60,7 @@ export const AdminCarsPage: React.FC = () => {
     year: 2024,
     color: 'White',
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchCars = async () => {
@@ -86,6 +87,7 @@ export const AdminCarsPage: React.FC = () => {
   }, [categoryFilter]);
 
   const handleOpenAddModal = () => {
+    setFieldErrors({});
     setEditingCar(null);
     setFormData({
       name: '',
@@ -110,11 +112,12 @@ export const AdminCarsPage: React.FC = () => {
   };
 
   const handleOpenEditModal = (car: ICar) => {
+    setFieldErrors({});
     setEditingCar(car);
     setFormData({
       name: car.name,
       brand: car.brand,
-      model: car.model,
+      model: car.model || '',
       category: car.category,
       registrationNumber: car.registrationNumber,
       seatingCapacity: car.seatingCapacity,
@@ -148,32 +151,63 @@ export const AdminCarsPage: React.FC = () => {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
+
+    // Client-side quick validation to prevent unnecessary bad requests
+    const localErrors: Record<string, string> = {};
+    if (!formData.name.trim()) localErrors.name = 'Vehicle display name is required';
+    if (!formData.brand.trim()) localErrors.brand = 'Brand / Make is required';
+    if (!formData.model.trim()) localErrors.model = 'Model is required (e.g. Camry, Innova, Swift)';
+    if (!formData.registrationNumber.trim()) localErrors.registrationNumber = 'Registration number is required';
+    if (!formData.primaryImage.trim()) localErrors.primaryImage = 'Photo URL is required';
+    if (!formData.description.trim() || formData.description.trim().length < 10) {
+      localErrors.description = 'Description must be at least 10 characters';
+    }
+
+    if (Object.keys(localErrors).length > 0) {
+      setFieldErrors(localErrors);
+      toastError('Please correct the highlighted fields.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const payload = {
         ...formData,
+        name: formData.name.trim(),
+        brand: formData.brand.trim(),
+        model: formData.model.trim(),
         seatingCapacity: Number(formData.seatingCapacity),
         luggageCapacity: Number(formData.luggageCapacity),
         baseRatePerKm: Number(formData.baseRatePerKm),
         baseRatePerHour: Number(formData.baseRatePerHour),
         fixedRatePerDay: Number(formData.fixedRatePerDay),
-        year: Number(formData.year),
+        year: Number(formData.year || 2024),
+        color: formData.color.trim() || 'White',
         registrationNumber: formData.registrationNumber.toUpperCase().trim(),
+        primaryImage: formData.primaryImage.trim(),
+        description: formData.description.trim(),
         amenities: ['ac', 'water_bottle', 'charger', 'bluetooth'],
       };
 
       if (editingCar) {
         await api.patch(`/admin/cars/${editingCar._id}`, payload);
-        success(`Updated ${formData.name}`);
+        success(`Updated vehicle "${formData.name}" successfully`);
       } else {
         await api.post('/admin/cars', payload);
-        success(`Added new vehicle ${formData.name}`);
+        success(`Added new vehicle "${formData.name}" to fleet`);
       }
 
       setCarModalOpen(false);
       fetchCars();
     } catch (err: any) {
-      toastError(err?.message || 'Failed to save vehicle');
+      console.error('Failed to save vehicle:', err);
+      if (err?.errors && typeof err.errors === 'object' && Object.keys(err.errors).length > 0) {
+        setFieldErrors(err.errors);
+        toastError(err.message || 'Please correct the highlighted fields.');
+      } else {
+        toastError(err?.message || 'Failed to save vehicle');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -368,21 +402,41 @@ export const AdminCarsPage: React.FC = () => {
         title={editingCar ? `Edit Vehicle — ${editingCar.name}` : 'Add New Vehicle to Fleet'}
         maxWidth="lg"
       >
-        <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <form onSubmit={handleFormSubmit} className="space-y-4 text-xs" noValidate>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input
-              label="Vehicle Model Name"
+              label="Vehicle Display Name"
               required
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              error={fieldErrors.name}
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+              }}
               placeholder="e.g. Toyota Camry Hybrid"
             />
             <Input
               label="Brand / Make"
               required
               value={formData.brand}
-              onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+              error={fieldErrors.brand}
+              onChange={(e) => {
+                setFormData({ ...formData, brand: e.target.value });
+                if (fieldErrors.brand) setFieldErrors((prev) => ({ ...prev, brand: undefined }));
+              }}
               placeholder="e.g. Toyota"
+            />
+            <Input
+              label="Model"
+              required
+              value={formData.model}
+              error={fieldErrors.model}
+              onChange={(e) => {
+                setFormData({ ...formData, model: e.target.value });
+                if (fieldErrors.model) setFieldErrors((prev) => ({ ...prev, model: undefined }));
+              }}
+              placeholder="e.g. Camry"
+              helperText="Vehicle model line"
             />
           </div>
 
@@ -393,8 +447,13 @@ export const AdminCarsPage: React.FC = () => {
               </label>
               <select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value as CarCategory })}
-                className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-medium"
+                onChange={(e) => {
+                  setFormData({ ...formData, category: e.target.value as CarCategory });
+                  if (fieldErrors.category) setFieldErrors((prev) => ({ ...prev, category: undefined }));
+                }}
+                className={`w-full bg-white border ${
+                  fieldErrors.category ? 'border-rose-300 ring-1 ring-rose-200' : 'border-slate-300'
+                } rounded-xl p-2.5 text-xs text-slate-900 font-medium`}
               >
                 <option value="sedan">Executive Sedan</option>
                 <option value="suv">Rugged SUV</option>
@@ -402,13 +461,22 @@ export const AdminCarsPage: React.FC = () => {
                 <option value="tempo_traveller">Tempo Traveller / Van</option>
                 <option value="hatchback">City Hatchback</option>
               </select>
+              {fieldErrors.category && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">{fieldErrors.category}</p>
+              )}
             </div>
 
             <Input
               label="Registration Number"
               required
               value={formData.registrationNumber}
-              onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
+              error={fieldErrors.registrationNumber}
+              onChange={(e) => {
+                setFormData({ ...formData, registrationNumber: e.target.value });
+                if (fieldErrors.registrationNumber) {
+                  setFieldErrors((prev) => ({ ...prev, registrationNumber: undefined }));
+                }
+              }}
               placeholder="DL01-CA-1001"
             />
 
@@ -418,13 +486,19 @@ export const AdminCarsPage: React.FC = () => {
               </label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as CarStatus })}
+                onChange={(e) => {
+                  setFormData({ ...formData, status: e.target.value as CarStatus });
+                  if (fieldErrors.status) setFieldErrors((prev) => ({ ...prev, status: undefined }));
+                }}
                 className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900 font-medium"
               >
                 <option value="active">Active & Bookable</option>
                 <option value="under_maintenance">Under Maintenance</option>
                 <option value="inactive">Inactive / Out of Fleet</option>
               </select>
+              {fieldErrors.status && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">{fieldErrors.status}</p>
+              )}
             </div>
           </div>
 
@@ -436,15 +510,28 @@ export const AdminCarsPage: React.FC = () => {
               max={25}
               required
               value={formData.seatingCapacity}
-              onChange={(e) => setFormData({ ...formData, seatingCapacity: Number(e.target.value) })}
+              error={fieldErrors.seatingCapacity}
+              onChange={(e) => {
+                setFormData({ ...formData, seatingCapacity: Number(e.target.value) });
+                if (fieldErrors.seatingCapacity) {
+                  setFieldErrors((prev) => ({ ...prev, seatingCapacity: undefined }));
+                }
+              }}
             />
             <Input
               label="Luggage Bags"
               type="number"
               min={0}
+              max={20}
               required
               value={formData.luggageCapacity}
-              onChange={(e) => setFormData({ ...formData, luggageCapacity: Number(e.target.value) })}
+              error={fieldErrors.luggageCapacity}
+              onChange={(e) => {
+                setFormData({ ...formData, luggageCapacity: Number(e.target.value) });
+                if (fieldErrors.luggageCapacity) {
+                  setFieldErrors((prev) => ({ ...prev, luggageCapacity: undefined }));
+                }
+              }}
             />
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -477,30 +564,74 @@ export const AdminCarsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <Input
-              label="Rate per KM (INR)"
+              label="Rate / KM (₹)"
               type="number"
               required
               min={0}
               value={formData.baseRatePerKm}
-              onChange={(e) => setFormData({ ...formData, baseRatePerKm: Number(e.target.value) })}
+              error={fieldErrors.baseRatePerKm}
+              onChange={(e) => {
+                setFormData({ ...formData, baseRatePerKm: Number(e.target.value) });
+                if (fieldErrors.baseRatePerKm) {
+                  setFieldErrors((prev) => ({ ...prev, baseRatePerKm: undefined }));
+                }
+              }}
             />
             <Input
-              label="Hourly Rate (INR)"
+              label="Hourly Rate (₹)"
               type="number"
               required
               min={0}
               value={formData.baseRatePerHour}
-              onChange={(e) => setFormData({ ...formData, baseRatePerHour: Number(e.target.value) })}
+              error={fieldErrors.baseRatePerHour}
+              onChange={(e) => {
+                setFormData({ ...formData, baseRatePerHour: Number(e.target.value) });
+                if (fieldErrors.baseRatePerHour) {
+                  setFieldErrors((prev) => ({ ...prev, baseRatePerHour: undefined }));
+                }
+              }}
             />
             <Input
-              label="Full Day Rate (INR)"
+              label="Day Rate (₹)"
               type="number"
               required
               min={0}
               value={formData.fixedRatePerDay}
-              onChange={(e) => setFormData({ ...formData, fixedRatePerDay: Number(e.target.value) })}
+              error={fieldErrors.fixedRatePerDay}
+              onChange={(e) => {
+                setFormData({ ...formData, fixedRatePerDay: Number(e.target.value) });
+                if (fieldErrors.fixedRatePerDay) {
+                  setFieldErrors((prev) => ({ ...prev, fixedRatePerDay: undefined }));
+                }
+              }}
+            />
+            <Input
+              label="Model Year"
+              type="number"
+              min={2000}
+              max={2035}
+              value={formData.year}
+              error={fieldErrors.year}
+              onChange={(e) => {
+                setFormData({ ...formData, year: Number(e.target.value) });
+                if (fieldErrors.year) {
+                  setFieldErrors((prev) => ({ ...prev, year: undefined }));
+                }
+              }}
+            />
+            <Input
+              label="Color"
+              value={formData.color}
+              error={fieldErrors.color}
+              onChange={(e) => {
+                setFormData({ ...formData, color: e.target.value });
+                if (fieldErrors.color) {
+                  setFieldErrors((prev) => ({ ...prev, color: undefined }));
+                }
+              }}
+              placeholder="e.g. White"
             />
           </div>
 
@@ -509,29 +640,54 @@ export const AdminCarsPage: React.FC = () => {
             required
             type="url"
             value={formData.primaryImage}
-            onChange={(e) => setFormData({ ...formData, primaryImage: e.target.value })}
+            error={fieldErrors.primaryImage}
+            onChange={(e) => {
+              setFormData({ ...formData, primaryImage: e.target.value });
+              if (fieldErrors.primaryImage) {
+                setFieldErrors((prev) => ({ ...prev, primaryImage: undefined }));
+              }
+            }}
             placeholder="https://images.unsplash.com/..."
+            helperText="Direct public HTTPS image link for vehicle display"
           />
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-              Vehicle Description
+              Vehicle Description *
             </label>
             <textarea
               rows={2}
               required
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, description: e.target.value });
+                if (fieldErrors.description) {
+                  setFieldErrors((prev) => ({ ...prev, description: undefined }));
+                }
+              }}
               placeholder="e.g. Executive German sedan with ambient lighting, plush leather seating and tinted privacy glass."
-              className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-900"
+              className={`w-full bg-white border ${
+                fieldErrors.description ? 'border-rose-400 ring-1 ring-rose-200' : 'border-slate-300'
+              } rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500`}
             />
+            {fieldErrors.description && (
+              <p className="mt-1 text-xs text-rose-600 font-medium">{fieldErrors.description}</p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button type="button" variant="outline" size="sm" onClick={() => setCarModalOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFieldErrors({});
+                setCarModalOpen(false);
+              }}
+            >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isSubmitting}>
+            <Button type="submit" size="sm" isLoading={isSubmitting} disabled={isSubmitting}>
               {editingCar ? 'Save Changes' : 'Add Vehicle'}
             </Button>
           </div>

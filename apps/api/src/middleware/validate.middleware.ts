@@ -18,20 +18,21 @@ export const validateRequest = (schema: {
         req.params = (await schema.params.parseAsync(req.params)) as any;
       }
       next();
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const formattedErrors: Record<string, string[]> = {};
-        error.errors.forEach((err) => {
-          const path = err.path.join('.') || 'root';
+    } catch (error: any) {
+      if (error instanceof ZodError || error?.name === 'ZodError' || Array.isArray(error?.issues)) {
+        const formattedErrors: Record<string, string> = {};
+        const issues = error.errors || error.issues || [];
+        issues.forEach((err: any) => {
+          const path = (err.path && err.path.join('.')) || 'root';
           if (!formattedErrors[path]) {
-            formattedErrors[path] = [];
+            formattedErrors[path] = err.message;
           }
-          formattedErrors[path].push(err.message);
         });
 
         return res.status(400).json({
           success: false,
-          error: 'Validation failed',
+          message: 'Please correct the highlighted fields.',
+          error: 'Please correct the highlighted fields.',
           errors: formattedErrors,
         });
       }
@@ -39,4 +40,3 @@ export const validateRequest = (schema: {
     }
   };
 };
-

@@ -89,7 +89,11 @@ export class PublicController {
   public static async getCarAlternatives(req: Request, res: Response, next: NextFunction) {
     try {
       const carId = req.params.id;
-      const { tripType, pickupDateTime, returnDateTime, durationHours, passengers } = req.query;
+      const tripType = req.query.tripType as string;
+      const pickupDateTime = req.query.pickupDateTime as string;
+      const returnDateTime = req.query.returnDateTime as string;
+      const durationHours = req.query.durationHours;
+      const passengers = req.query.passengers || req.query.passengerCount;
 
       const selectedCar = await Car.findOne({ _id: carId, isActive: true });
       if (!selectedCar) {

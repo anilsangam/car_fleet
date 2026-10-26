@@ -14,8 +14,49 @@ export function normalizeIndianPhone(input: string): string {
 
 export const indianPhoneRegex = /^[6-9]\d{9}$/;
 export const nameRegex = /^[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF]+(?:[' -][a-zA-Z\u00C0-\u024F\u1E00-\u1EFF]+)*$/;
-
 export const phoneRegex = /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/;
+
+/**
+ * Validates a 10-digit Indian mobile number.
+ * Returns { isValid: boolean, error?: string } with precise, user-friendly messages.
+ */
+export function validateIndianMobileNumber(val: string): { isValid: boolean; error?: string } {
+  if (!val || val.trim() === '') {
+    return { isValid: false, error: 'Mobile number is required.' };
+  }
+  const digits = val.replace(/\D/g, '');
+  if (digits.length === 0) {
+    return { isValid: false, error: 'Mobile number is required.' };
+  }
+  if (digits.length < 10) {
+    return { isValid: false, error: 'Enter a 10-digit mobile number.' };
+  }
+  if (digits.length > 10) {
+    return { isValid: false, error: 'Mobile number cannot exceed 10 digits.' };
+  }
+  if (!/^[6-9]/.test(digits)) {
+    return { isValid: false, error: 'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.' };
+  }
+  return { isValid: true };
+}
+
+/**
+ * Strict Zod schema for Indian mobile numbers.
+ * Normalizes input (+91 / 0 prefixes removed, non-digits stripped) and enforces exact 10 digits starting with 6-9.
+ */
+export const indianMobileSchema = z
+  .string({ required_error: 'Mobile number is required.' })
+  .trim()
+  .refine((val) => val.replace(/\D/g, '').length > 0, {
+    message: 'Mobile number is required.',
+  })
+  .transform(normalizeIndianPhone)
+  .refine((val) => val.length === 10, {
+    message: 'Enter a 10-digit mobile number.',
+  })
+  .refine((val) => indianPhoneRegex.test(val), {
+    message: 'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.',
+  });
 
 export const tripTypeEnum = z.enum(['one_way', 'round_trip', 'hourly']);
 export const carCategoryEnum = z.enum(['sedan', 'suv', 'luxury', 'tempo_traveller', 'hatchback']);
@@ -29,25 +70,19 @@ export const paymentStatusEnum = z.enum(['pending', 'partially_collected', 'coll
 export const bookingCreateSchema = z.object({
   tripType: tripTypeEnum,
   customerName: z
-    .string()
+    .string({ required_error: 'Full name is required' })
     .trim()
     .min(2, 'Name must be at least 2 characters')
     .max(100, 'Name cannot exceed 100 characters')
     .refine((val) => val.trim().length >= 2, 'Name cannot be whitespace only'),
-  customerPhone: z
-    .string()
-    .trim()
-    .transform(normalizeIndianPhone)
-    .refine((val) => indianPhoneRegex.test(val), {
-      message: 'Valid 10-digit mobile number required (starting with 6, 7, 8, or 9)',
-    }),
+  customerPhone: indianMobileSchema,
   customerEmail: z.string().email('Invalid email address').optional().or(z.literal('')),
   pickupLocation: z.string().min(3, 'Pickup location must be at least 3 characters'),
   destinationLocation: z.string().optional(),
   pickupDateTime: z.string().min(10, 'Valid pickup date and time is required'),
   returnDateTime: z.string().optional(),
-  durationHours: z.number().int().min(1).max(72).optional(),
-  passengerCount: z.number().int().min(1).max(20).default(1),
+  durationHours: z.coerce.number().int().min(1).max(72).optional(),
+  passengerCount: z.coerce.number().int().min(1).max(20).default(1),
   carId: z.string().min(1, 'Please select a car'),
   specialInstructions: z.string().max(500).optional(),
   termsAccepted: z.boolean().refine(val => val === true, 'You must accept the terms & conditions'),
@@ -98,47 +133,55 @@ export const availabilityQuerySchema = z.object({
 });
 
 export const statusLookupSchema = z.object({
-  bookingReference: z.string().min(4, 'Valid booking reference required').max(30),
-  phone: z.string().min(10, 'Valid 10-digit mobile number required').max(15),
+  bookingReference: z.string().trim().min(4, 'Valid booking reference required').max(30),
+  phone: indianMobileSchema,
 });
 
 export const statusVerifyOtpSchema = z.object({
-  bookingReference: z.string().min(4).max(30),
-  otpCode: z.string().length(6, 'OTP must be 6 digits'),
+  bookingReference: z.string().trim().min(4, 'Valid booking reference required').max(30),
+  otpCode: z.string().trim().length(6, 'OTP must be 6 digits'),
 });
 
 export const carCreateSchema = z.object({
-  name: z.string().min(2, 'Name is required'),
-  brand: z.string().min(1, 'Brand is required'),
-  model: z.string().min(1, 'Model is required'),
+  name: z.string({ required_error: 'Vehicle name is required' }).trim().min(2, 'Vehicle name must be at least 2 characters'),
+  brand: z.string({ required_error: 'Brand is required' }).trim().min(1, 'Brand is required'),
+  model: z.string({ required_error: 'Model is required' }).trim().min(1, 'Model is required'),
   category: carCategoryEnum,
-  registrationNumber: z.string().min(4, 'Registration number is required').toUpperCase(),
-  seatingCapacity: z.number().int().min(1).max(25),
-  luggageCapacity: z.number().int().min(0).max(20),
+  registrationNumber: z.string().trim().min(4, 'Registration number is required').toUpperCase(),
+  seatingCapacity: z.coerce.number().int('Seating capacity must be an integer').min(1, 'Seating capacity must be at least 1').max(25, 'Seating capacity cannot exceed 25'),
+  luggageCapacity: z.coerce.number().int('Luggage capacity must be an integer').min(0, 'Luggage capacity cannot be negative').max(20, 'Luggage capacity cannot exceed 20'),
   transmission: transmissionEnum,
   fuelType: fuelTypeEnum,
-  primaryImage: z.string().url('Valid image URL required'),
-  images: z.array(z.string().url()).optional().default([]),
-  description: z.string().min(10, 'Description must be at least 10 characters'),
+  primaryImage: z.string().trim().url('Valid image URL required (e.g. https://images.unsplash.com/...)'),
+  images: z.array(z.string().trim().url('Valid image URL required')).optional().default([]),
+  description: z.string().trim().min(10, 'Description must be at least 10 characters'),
   amenities: z.array(z.string()).default([]),
-  baseRatePerKm: z.number().min(0),
-  baseRatePerHour: z.number().min(0),
-  fixedRatePerDay: z.number().min(0),
+  baseRatePerKm: z.coerce.number().min(0, 'Rate per KM cannot be negative'),
+  baseRatePerHour: z.coerce.number().min(0, 'Rate per hour cannot be negative'),
+  fixedRatePerDay: z.coerce.number().min(0, 'Daily rate cannot be negative'),
   status: carStatusEnum.default('active'),
   isActive: z.boolean().default(true),
-  year: z.number().int().min(2000).max(2035).optional(),
-  color: z.string().optional(),
+  year: z.coerce.number().int().min(2000, 'Year must be 2000 or later').max(2035, 'Invalid year').optional(),
+  color: z.string().trim().optional(),
 });
 
 export const carUpdateSchema = carCreateSchema.partial();
 
 export const driverCreateSchema = z.object({
-  name: z.string().min(2, 'Name is required'),
-  phone: z.string().min(10, 'Phone must be at least 10 digits'),
-  alternatePhone: z.string().optional(),
-  licenseNumber: z.string().min(5, 'Valid license number required').toUpperCase(),
+  name: z.string().trim().min(2, 'Name is required'),
+  phone: indianMobileSchema,
+  alternatePhone: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(''))
+    .transform((val) => (val ? normalizeIndianPhone(val) : ''))
+    .refine((val) => !val || (val.length === 10 && indianPhoneRegex.test(val)), {
+      message: 'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.',
+    }),
+  licenseNumber: z.string().trim().min(5, 'Valid license number required').toUpperCase(),
   licenseExpiry: z.string().optional(),
-  experienceYears: z.number().int().min(0).max(50).optional(),
+  experienceYears: z.coerce.number().int().min(0).max(50).optional(),
   status: driverStatusEnum.default('active'),
   assignedCarId: z.string().optional(),
   notes: z.string().optional(),
@@ -227,13 +270,7 @@ export const customerSignupSchema = z
       .refine((val) => nameRegex.test(val.trim()), {
         message: 'Name can only contain letters, spaces, hyphens, and apostrophes',
       }),
-    phone: z
-      .string()
-      .trim()
-      .transform(normalizeIndianPhone)
-      .refine((val) => indianPhoneRegex.test(val), {
-        message: 'Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9',
-      }),
+    phone: indianMobileSchema,
     email: z
       .string()
       .trim()

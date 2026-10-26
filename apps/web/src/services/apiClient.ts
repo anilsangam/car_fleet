@@ -2,14 +2,27 @@ const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api/v1';
 
 export class ApiError extends Error {
   public status: number;
-  public errors?: Record<string, string[]>;
+  public errors?: Record<string, string>;
 
-  constructor(message: string, status: number, errors?: Record<string, string[]>) {
+  constructor(message: string, status: number, errors?: Record<string, string>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.errors = errors;
   }
+}
+
+/**
+ * Extracts a field-specific error message from an API error or response.
+ */
+export function getFieldError(error: any, field: string): string | undefined {
+  if (!error) return undefined;
+  if (error.errors && typeof error.errors === 'object') {
+    const val = error.errors[field];
+    if (typeof val === 'string') return val;
+    if (Array.isArray(val) && val.length > 0) return val[0];
+  }
+  return undefined;
 }
 
 export async function apiRequest<T = any>(
@@ -42,8 +55,24 @@ export async function apiRequest<T = any>(
 
   if (!response.ok) {
     const errorMessage =
-      data?.error || data?.message || `Request failed with status ${response.status}`;
-    throw new ApiError(errorMessage, response.status, data?.errors);
+      data?.message || data?.error || `Request failed with status ${response.status}`;
+
+    // Normalize field-level errors to Record<string, string>
+    let formattedErrors: Record<string, string> | undefined = undefined;
+    if (data?.errors && typeof data.errors === 'object') {
+      formattedErrors = {};
+      for (const [key, val] of Object.entries(data.errors)) {
+        if (typeof val === 'string') {
+          formattedErrors[key] = val;
+        } else if (Array.isArray(val) && val.length > 0) {
+          formattedErrors[key] = String(val[0]);
+        } else if (val) {
+          formattedErrors[key] = String(val);
+        }
+      }
+    }
+
+    throw new ApiError(errorMessage, response.status, formattedErrors);
   }
 
   return data;

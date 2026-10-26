@@ -17,10 +17,12 @@ import { useToast } from '../../context/ToastContext';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { IndianMobileInput } from '../../components/common/IndianMobileInput';
 import {
   normalizeIndianPhone,
   indianPhoneRegex,
   nameRegex,
+  validateIndianMobileNumber,
 } from '@car-rental/shared';
 
 interface FormErrors {
@@ -75,12 +77,10 @@ export const CustomerSignupPage: React.FC = () => {
       }
 
       case 'phone': {
-        const raw = (value !== undefined ? value : phone).trim();
-        const normalized = normalizeIndianPhone(raw);
-        if (!raw) {
-          errors.phone = 'Mobile number is required.';
-        } else if (!indianPhoneRegex.test(normalized)) {
-          errors.phone = 'Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.';
+        const val = (value !== undefined ? value : phone).trim();
+        const res = validateIndianMobileNumber(val);
+        if (!res.isValid) {
+          errors.phone = res.error;
         } else {
           delete errors.phone;
         }
@@ -282,23 +282,19 @@ export const CustomerSignupPage: React.FC = () => {
             </div>
 
             <div>
-              <Input
+              <IndianMobileInput
                 label="Mobile Number"
-                type="tel"
                 required
                 value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value);
+                onChange={(val) => {
+                  setPhone(val);
                   if (fieldErrors.phone) {
                     setFieldErrors((prev) => ({ ...prev, phone: undefined }));
                   }
                 }}
-                onBlur={(e) => validateField('phone', e.target.value)}
+                onBlur={() => validateField('phone', phone)}
                 error={fieldErrors.phone}
-                placeholder="e.g. 9876543210 or +91 98765 43210"
-                helperText="10-digit mobile number beginning with 6, 7, 8, or 9"
-                icon={<Phone className="w-4 h-4 text-slate-400" />}
-                autoComplete="tel"
+                disabled={isLoading}
               />
             </div>
 

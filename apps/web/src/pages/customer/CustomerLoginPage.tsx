@@ -39,9 +39,11 @@ export const CustomerLoginPage: React.FC = () => {
         }
       } else {
         // Mobile phone check
-        const normalized = normalizeIndianPhone(trimmed);
-        if (normalized.length < 10) {
-          errors.identifier = 'Please enter a valid 10-digit mobile number or email.';
+        const digits = trimmed.replace(/\D/g, '');
+        if (digits.length < 10) {
+          errors.identifier = 'Enter a 10-digit mobile number.';
+        } else if (!/^[6-9]/.test(digits)) {
+          errors.identifier = 'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.';
         } else {
           delete errors.identifier;
         }
@@ -145,7 +147,12 @@ export const CustomerLoginPage: React.FC = () => {
                 required
                 value={identifier}
                 onChange={(e) => {
-                  setIdentifier(e.target.value);
+                  let val = e.target.value;
+                  // If user is entering digits (mobile number), stop an 11th digit from being entered
+                  if (!val.includes('@') && /^\d+$/.test(val.replace(/\D/g, ''))) {
+                    val = val.replace(/\D/g, '').slice(0, 10);
+                  }
+                  setIdentifier(val);
                   if (fieldErrors.identifier) {
                     setFieldErrors((prev) => ({ ...prev, identifier: undefined }));
                   }

@@ -2,19 +2,28 @@ import React, { useState } from 'react';
 import { Phone, Mail, MapPin, Clock, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
 import { Card } from '../../components/common/Card';
 import { Input } from '../../components/common/Input';
+import { IndianMobileInput } from '../../components/common/IndianMobileInput';
 import { Button } from '../../components/common/Button';
 import { useToast } from '../../context/ToastContext';
+import { validateIndianMobileNumber } from '@car-rental/shared';
 
 export const ContactPage: React.FC = () => {
-  const { success } = useToast();
+  const { success, error: toastError } = useToast();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
+  const [phoneError, setPhoneError] = useState<string | undefined>(undefined);
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const phoneRes = validateIndianMobileNumber(phone);
+    if (!phoneRes.isValid) {
+      setPhoneError(phoneRes.error);
+      toastError(phoneRes.error || 'Please enter a valid mobile number.');
+      return;
+    }
     setSubmitted(true);
     success('Message sent to dispatch desk. We will get in touch shortly!');
   };
@@ -116,13 +125,15 @@ export const ContactPage: React.FC = () => {
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Ankit Sharma"
                   />
-                  <Input
+                  <IndianMobileInput
                     label="Mobile Phone"
                     required
-                    type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. 9811122334"
+                    error={phoneError}
+                    onChange={(val) => {
+                      setPhone(val);
+                      if (phoneError) setPhoneError(undefined);
+                    }}
                   />
                 </div>
 

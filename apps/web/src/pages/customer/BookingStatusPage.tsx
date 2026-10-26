@@ -14,11 +14,13 @@ import {
   Calendar,
   XCircle,
 } from 'lucide-react';
+import { validateIndianMobileNumber } from '@car-rental/shared';
 import { api } from '../../services/apiClient';
 import { useToast } from '../../context/ToastContext';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { IndianMobileInput } from '../../components/common/IndianMobileInput';
 import { Badge } from '../../components/common/Badge';
 
 export const BookingStatusPage: React.FC = () => {
@@ -36,8 +38,13 @@ export const BookingStatusPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const handleLookup = async (otpToVerify?: string) => {
-    if (!bookingReference.trim() || !phone.trim()) {
-      setError('Please enter both your Booking Reference and Registered Mobile Number.');
+    if (!bookingReference.trim()) {
+      setError('Please enter your Booking Reference Code.');
+      return;
+    }
+    const phoneRes = validateIndianMobileNumber(phone);
+    if (!phoneRes.isValid) {
+      setError(phoneRes.error || 'Please enter a valid 10-digit mobile number.');
       return;
     }
 
@@ -131,13 +138,15 @@ export const BookingStatusPage: React.FC = () => {
               onChange={(e) => setBookingReference(e.target.value.toUpperCase())}
             />
 
-            <Input
+            <IndianMobileInput
               label="Registered Mobile Number"
               required
-              type="tel"
-              placeholder="e.g. 9876543210"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(val) => {
+                setPhone(val);
+                if (error) setError(null);
+              }}
+              disabled={isLoading}
             />
           </div>
 

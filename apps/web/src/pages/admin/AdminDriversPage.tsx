@@ -11,12 +11,13 @@ import {
   ShieldCheck,
   Calendar,
 } from 'lucide-react';
-import { IDriver, DriverStatus } from '@car-rental/shared';
+import { IDriver, DriverStatus, validateIndianMobileNumber } from '@car-rental/shared';
 import { api } from '../../services/apiClient';
 import { useToast } from '../../context/ToastContext';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { IndianMobileInput } from '../../components/common/IndianMobileInput';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { Skeleton } from '../../components/common/Skeleton';
@@ -49,6 +50,7 @@ export const AdminDriversPage: React.FC = () => {
     status: 'active' as DriverStatus,
     notes: '',
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchDrivers = async () => {
@@ -75,6 +77,7 @@ export const AdminDriversPage: React.FC = () => {
   }, [statusFilter]);
 
   const handleOpenAddModal = () => {
+    setFieldErrors({});
     setEditingDriver(null);
     setFormData({
       name: '',
@@ -89,6 +92,7 @@ export const AdminDriversPage: React.FC = () => {
   };
 
   const handleOpenEditModal = (driver: IDriver) => {
+    setFieldErrors({});
     setEditingDriver(driver);
     setFormData({
       name: driver.name,
@@ -117,13 +121,34 @@ export const AdminDriversPage: React.FC = () => {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
+
+    const localErrors: Record<string, string> = {};
+    if (!formData.name.trim()) localErrors.name = 'Driver name is required.';
+    const phoneRes = validateIndianMobileNumber(formData.phone);
+    if (!phoneRes.isValid) localErrors.phone = phoneRes.error || 'Enter a valid 10-digit mobile number.';
+    if (formData.alternatePhone) {
+      const altRes = validateIndianMobileNumber(formData.alternatePhone);
+      if (!altRes.isValid) localErrors.alternatePhone = altRes.error || 'Enter a valid 10-digit mobile number.';
+    }
+    if (!formData.licenseNumber.trim()) localErrors.licenseNumber = 'Commercial license number is required.';
+
+    if (Object.keys(localErrors).length > 0) {
+      setFieldErrors(localErrors);
+      toastError('Please correct the highlighted fields.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const payload = {
         ...formData,
+        name: formData.name.trim(),
         experienceYears: Number(formData.experienceYears),
         licenseNumber: formData.licenseNumber.toUpperCase().trim(),
         phone: formData.phone.trim(),
+        alternatePhone: formData.alternatePhone.trim() || undefined,
+        notes: formData.notes.trim() || undefined,
       };
 
       if (editingDriver) {
@@ -137,7 +162,13 @@ export const AdminDriversPage: React.FC = () => {
       setDriverModalOpen(false);
       fetchDrivers();
     } catch (err: any) {
-      toastError(err?.message || 'Failed to save driver');
+      console.error('Failed to save driver', err);
+      if (err?.errors && typeof err.errors === 'object' && Object.keys(err.errors).length > 0) {
+        setFieldErrors(err.errors);
+        toastError(err.message || 'Please correct the highlighted fields.');
+      } else {
+        toastError(err?.message || 'Failed to save driver');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -318,30 +349,41 @@ export const AdminDriversPage: React.FC = () => {
         title={editingDriver ? `Edit Chauffeur — ${editingDriver.name}` : 'Register New Chauffeur'}
         maxWidth="md"
       >
-        <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
+        <form onSubmit={handleFormSubmit} className="space-y-4 text-xs" noValidate>
           <Input
             label="Chauffeur Full Name"
             required
             value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            error={fieldErrors.name}
+            onChange={(e) => {
+              setFormData({ ...formData, name: e.target.value });
+              if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+            }}
             placeholder="e.g. Vikram Singh"
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
+            <IndianMobileInput
               label="Primary Phone Number"
               required
-              type="tel"
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="+91 98222 33445"
+              error={fieldErrors.phone}
+              onChange={(val) => {
+                setFormData({ ...formData, phone: val });
+                if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+              }}
             />
-            <Input
+            <IndianMobileInput
               label="Alternate Emergency Phone"
-              type="tel"
               value={formData.alternatePhone}
-              onChange={(e) => setFormData({ ...formData, alternatePhone: e.target.value })}
-              placeholder="e.g. 9811122334"
+              error={fieldErrors.alternatePhone}
+              onChange={(val) => {
+                setFormData({ ...formData, alternatePhone: val });
+                if (fieldErrors.alternatePhone) {
+                  setFieldErrors((prev) => ({ ...prev, alternatePhone: undefined }));
+                }
+              }}
+              helperText="Optional emergency contact"
             />
           </div>
 
@@ -351,7 +393,13 @@ export const AdminDriversPage: React.FC = () => {
                 label="Commercial Driving License"
                 required
                 value={formData.licenseNumber}
-                onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                error={fieldErrors.licenseNumber}
+                onChange={(e) => {
+                  setFormData({ ...formData, licenseNumber: e.target.value });
+                  if (fieldErrors.licenseNumber) {
+                    setFieldErrors((prev) => ({ ...prev, licenseNumber: undefined }));
+                  }
+                }}
                 placeholder="DL-042012008451"
               />
             </div>
@@ -362,7 +410,13 @@ export const AdminDriversPage: React.FC = () => {
               max={50}
               required
               value={formData.experienceYears}
-              onChange={(e) => setFormData({ ...formData, experienceYears: Number(e.target.value) })}
+              error={fieldErrors.experienceYears}
+              onChange={(e) => {
+                setFormData({ ...formData, experienceYears: Number(e.target.value) });
+                if (fieldErrors.experienceYears) {
+                  setFieldErrors((prev) => ({ ...prev, experienceYears: undefined }));
+                }
+              }}
             />
           </div>
 
@@ -395,10 +449,18 @@ export const AdminDriversPage: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button type="button" variant="outline" size="sm" onClick={() => setDriverModalOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFieldErrors({});
+                setDriverModalOpen(false);
+              }}
+            >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isSubmitting}>
+            <Button type="submit" size="sm" isLoading={isSubmitting} disabled={isSubmitting}>
               {editingDriver ? 'Save Changes' : 'Register Chauffeur'}
             </Button>
           </div>

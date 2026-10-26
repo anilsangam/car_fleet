@@ -158,7 +158,8 @@ describe('Fleet Alternatives API (GET /api/v1/cars/:id/alternatives)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.allOptions.length).toBe(4);
+    expect(res.body.data.allOptions.length).toBeLessThanOrEqual(4);
+    expect(res.body.data.allOptions.length).toBe(3); // base car + 2 available 6+ passenger SUVs
 
     // When 6 passengers are requested, SUVs with seating >= 6 (Innova & XUV700) should be prioritized
     const alternativeNames = res.body.data.alternatives.map((c: any) => c.name);

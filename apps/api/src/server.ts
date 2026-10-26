@@ -35,8 +35,9 @@ async function bootstrap() {
 
     process.on('SIGTERM', shutdown);
     process.on('SIGINT', shutdown);
-  } catch (error) {
-    console.error('Fatal Server Bootstrap Error:', error);
+  } catch (error: any) {
+    console.error('[SERVER] Fatal startup failure: Cannot initialize server without a healthy database connection.');
+    console.error(`[SERVER] Reason: ${error?.message || error}`);
     process.exit(1);
   }
 }

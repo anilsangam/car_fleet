@@ -15,13 +15,14 @@ import {
   Banknote,
   CheckCircle,
 } from 'lucide-react';
-import { TripType, ICar, FareBreakdown } from '@car-rental/shared';
+import { TripType, ICar, FareBreakdown, validateIndianMobileNumber } from '@car-rental/shared';
 import { api } from '../../services/apiClient';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { IndianMobileInput } from '../../components/common/IndianMobileInput';
 import { Select } from '../../components/common/Select';
 import { Skeleton } from '../../components/common/Skeleton';
 import { FareSummaryCard } from '../../components/customer/FareSummaryCard';
@@ -100,7 +101,7 @@ export const BookingPage: React.FC = () => {
   const [fareBreakdown, setFareBreakdown] = useState<FareBreakdown | null>(null);
   const [isCalculatingFare, setIsCalculatingFare] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string | undefined>>({});
 
   // 1. Autofill customer contact info from logged in account
   useEffect(() => {
@@ -227,9 +228,9 @@ export const BookingPage: React.FC = () => {
     if (!customerName.trim() || customerName.trim().length < 2) {
       errors.customerName = 'Please enter your full name';
     }
-    const cleanPhone = customerPhone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length < 10) {
-      errors.customerPhone = 'Valid 10-digit mobile number required';
+    const phoneRes = validateIndianMobileNumber(customerPhone);
+    if (!phoneRes.isValid) {
+      errors.customerPhone = phoneRes.error || 'Valid 10-digit mobile number required';
     }
     if (!termsAccepted) {
       errors.terms = 'You must accept the terms & conditions';
@@ -630,15 +631,18 @@ export const BookingPage: React.FC = () => {
                 icon={<User className="w-4 h-4" />}
               />
 
-              <Input
+              <IndianMobileInput
                 label="Mobile Number (10 digits)"
                 required
-                type="tel"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="e.g. 9876543210"
+                onChange={(val) => {
+                  setCustomerPhone(val);
+                  if (formErrors.customerPhone) {
+                    setFormErrors((prev) => ({ ...prev, customerPhone: undefined }));
+                  }
+                }}
                 error={formErrors.customerPhone}
-                icon={<Phone className="w-4 h-4" />}
+                disabled={isSubmitting}
               />
 
               <div className="sm:col-span-2">
