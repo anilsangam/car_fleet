@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
+import path from 'path';
+import fs from 'fs';
 import { env } from './config/env';
 import v1Routes from './routes/v1';
 import { errorHandler } from './middleware/error.middleware';
@@ -13,15 +15,31 @@ export function createApp() {
   // Security Headers
   app.use(
     helmet({
-      contentSecurityPolicy: false, // Allows flexible local UI testing
+      contentSecurityPolicy: false, // Allows flexible UI script & image rendering
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     })
   );
 
-  // CORS
+  // CORS - Supports Local Development and Render Cloud Deployment
   app.use(
     cors({
-      origin: [env.FRONTEND_URL, 'http://localhost:3000', 'http://127.0.0.1:3000'],
+      origin: (origin, callback) => {
+        // Allow requests with no origin (e.g. mobile apps, curl, or same-origin requests)
+        if (!origin) return callback(null, true);
+        const allowedOrigins = [
+          env.FRONTEND_URL,
+          'http://localhost:3000',
+          'http://127.0.0.1:3000',
+        ];
+        if (
+          allowedOrigins.includes(origin) ||
+          origin.endsWith('.onrender.com') ||
+          origin.endsWith('.vercel.app')
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -50,7 +68,26 @@ export function createApp() {
   // Mount API v1
   app.use('/api/v1', v1Routes);
 
-  // Catch-all 404
+  // Serve Frontend Static Build (Production / Render Deployment)
+  const possibleDistPaths = [
+    path.resolve(__dirname, '../../web/dist'),
+    path.resolve(process.cwd(), 'apps/web/dist'),
+    path.resolve(process.cwd(), 'car_rental/apps/web/dist'),
+  ];
+  const webDistPath = possibleDistPaths.find((p) => fs.existsSync(p));
+
+  if (webDistPath) {
+    app.use(express.static(webDistPath));
+    app.get('*', (req, res, next) => {
+      // Do not intercept API or health endpoints
+      if (req.originalUrl.startsWith('/api') || req.originalUrl === '/health') {
+        return next();
+      }
+      res.sendFile(path.join(webDistPath, 'index.html'));
+    });
+  }
+
+  // Catch-all 404 for unmatched API routes
   app.use('*', (req, res) => {
     res.status(404).json({
       success: false,
@@ -63,4 +100,3 @@ export function createApp() {
 
   return app;
 }
-

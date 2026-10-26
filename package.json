@@ -13,6 +13,7 @@
     "dev:web": "npm --workspace=@car-rental/web run dev",
     "db:start": "powershell -Command \"New-Item -ItemType Directory -Force -Path ./data/db; & 'C:\\Program Files\\MongoDB\\Server\\8.2\\bin\\mongod.exe' --dbpath ./data/db\"",
     "build": "npm --workspace=@car-rental/shared run build && npm --workspace=@car-rental/api run build && npm --workspace=@car-rental/web run build",
+    "start": "node apps/api/dist/server.js",
     "test": "npm --workspace=@car-rental/api run test",
     "seed": "npm --workspace=@car-rental/api run seed",
     "bootstrap:admin": "npm --workspace=@car-rental/api run bootstrap:admin",
