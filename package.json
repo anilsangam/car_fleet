@@ -1,0 +1,25 @@
+{
+  "name": "car-rental-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production Car Booking Website with Admin Panel",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm --workspace=@car-rental/api run dev",
+    "dev:web": "npm --workspace=@car-rental/web run dev",
+    "db:start": "powershell -Command \"New-Item -ItemType Directory -Force -Path ./data/db; & 'C:\\Program Files\\MongoDB\\Server\\8.2\\bin\\mongod.exe' --dbpath ./data/db\"",
+    "build": "npm --workspace=@car-rental/shared run build && npm --workspace=@car-rental/api run build && npm --workspace=@car-rental/web run build",
+    "test": "npm --workspace=@car-rental/api run test",
+    "seed": "npm --workspace=@car-rental/api run seed",
+    "bootstrap:admin": "npm --workspace=@car-rental/api run bootstrap:admin",
+    "type-check": "npm --workspace=@car-rental/shared run type-check && npm --workspace=@car-rental/api run type-check && npm --workspace=@car-rental/web run type-check"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  }
+}
